@@ -769,6 +769,32 @@
             #file-import-input {
                 display: none;
             }
+
+            #canvas-container.drag-json-import-active {
+                outline: 2px dashed var(--accent);
+                outline-offset: -10px;
+            }
+
+            #canvas-container.drag-json-import-active::after {
+                content: "松开鼠标导入 JSON 模型";
+                position: absolute;
+                inset: 18px;
+                z-index: 60;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 2px dashed rgba(91, 155, 213, 0.8);
+                border-radius: 18px;
+                background: rgba(20, 23, 29, 0.72);
+                color: #eef4ff;
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                pointer-events: none;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 18px 60px rgba(0,0,0,0.38);
+            }
         </style>
         <link rel="stylesheet" href="/Static/css/Global.css"/>
         <link rel="stylesheet" href="/Web/css/Global.css"/>
@@ -883,7 +909,7 @@
                 }
             }
         </style>
-    <link rel="stylesheet" href="/Static/css/Global.css"/><link rel="stylesheet" href="/Web/css/Global.css"/><link rel="stylesheet" href="/Web/css/SoruxGPT.css"/></head>
+    <link rel="stylesheet" href="/Static/css/Global.css"/><link rel="stylesheet" href="/Web/css/Global.css"/><link rel="stylesheet" href="/Web/css/SoruxGPT.css"/><link rel="stylesheet" href="/Static/css/Global.css"/><link rel="stylesheet" href="/Web/css/Global.css"/><link rel="stylesheet" href="/Web/css/SoruxGPT.css"/></head>
     <body>
         <div id="app">
             <div id="menu-bar">
@@ -25131,64 +25157,154 @@ void main() {
                 function N0(i) {
                     let e = String(i || "").replace(/^\uFEFF/, "").trim();
                     if (!e)
-                        throw new Error("\u6587\u4EF6\u5185\u5BB9\u4E3A\u7A7A");
+                        throw new Error("文件内容为空");
                     try {
-                        let s = JSON.parse(e)
-                          , r = Array.isArray(s) ? s : s.modelsData || s.models;
-                        if (Array.isArray(r))
-                            return r
+                        let t = JSON.parse(e);
+                        if (Array.isArray(t))
+                            return {
+                                modelsData: t,
+                                groupsData: []
+                            };
+                        if (t && typeof t == "object") {
+                            if (Array.isArray(t.modelsData) || Array.isArray(t.models) || Array.isArray(t.groupsData) || Array.isArray(t.groups))
+                                return t
+                        }
                     } catch {}
                     let t = /(?:const|let|var)\s+modelsData\s*=\s*/.exec(e);
                     if (!t)
-                        throw new Error("\u672A\u627E\u5230 modelsData \u6570\u636E");
+                        throw new Error("未找到 modelsData 数据");
                     let n = U0(e, t.index + t[0].length);
                     if (!n)
-                        throw new Error("modelsData \u6570\u7EC4\u4E0D\u5B8C\u6574");
+                        throw new Error("modelsData 数组不完整");
                     try {
-                        return JSON.parse(n)
+                        return {
+                            modelsData: JSON.parse(n),
+                            groupsData: []
+                        }
                     } catch (s) {
-                        throw new Error(`\u6A21\u578B\u6570\u636E\u683C\u5F0F\u9519\u8BEF\uFF1A${s.message}`)
+                        throw new Error(`模型数据格式错误：${s.message}`)
                     }
                 }
                 function Ba(i, e) {
-                    if (Array.isArray(i))
-                        return new A(Number(i[0]) || e.x,Number(i[1]) || e.y,Number(i[2]) || e.z);
+                    if (Array.isArray(i)) {
+                        let t = Number(i[0])
+                          , n = Number(i[1])
+                          , s = Number(i[2]);
+                        return new A(Number.isFinite(t) ? t : e.x,Number.isFinite(n) ? n : e.y,Number.isFinite(s) ? s : e.z)
+                    }
                     let t = i && typeof i == "object" ? i : {}
                       , n = Number(t.x)
                       , s = Number(t.y)
                       , r = Number(t.z);
                     return new A(Number.isFinite(n) ? n : e.x,Number.isFinite(s) ? s : e.y,Number.isFinite(r) ? r : e.z)
                 }
-                function O0(i) {
-                    if (!Array.isArray(i))
-                        throw new Error("\u6A21\u578B\u6570\u636E\u4E0D\u662F\u6570\u7EC4");
-                    let e = [];
-                    if (i.forEach( (t, n) => {
-                        if (!t || typeof t != "object" || !wi[t.geometryType])
+                function normalizeExportedPackage(i) {
+                    let e = Array.isArray(i) ? i : i && typeof i == "object" ? i : null;
+                    if (!e)
+                        throw new Error("模型数据格式不正确");
+                    let t = Array.isArray(e) ? e : e.modelsData || e.models
+                      , n = Array.isArray(e) ? [] : e.groupsData || e.groups || [];
+                    if (!Array.isArray(t))
+                        throw new Error("模型数据不是数组");
+                    let s = [];
+                    n.forEach( (o, a) => {
+                        if (!o || typeof o != "object")
                             return;
-                        let s = wi[t.geometryType];
-                        e.push({
-                            geometryType: t.geometryType,
-                            geometryParams: Array.isArray(t.geometryParams) && t.geometryParams.length ? [...t.geometryParams] : [...s.params],
-                            color: typeof t.color == "string" ? t.color : "#3498db",
-                            name: typeof t.name == "string" && t.name.trim() ? t.name.trim() : null,
-                            position: Ba(t.position, new A(0,0,0)),
-                            rotation: Ba(t.rotation, new A(0,0,0)),
-                            scale: Ba(t.scale, new A(1,1,1)),
-                            bevel: Math.max(0, Number(t.bevel) || 0),
-                            capType: t.capType === "round" ? "round" : "flat",
-                            sourceIndex: n
+                        let c = o.position || o.pos
+                          , l = o.rotation || o.rot
+                          , h = o.scale || o.scl
+                          , d = o.id != null ? o.id : a + 1;
+                        s.push({
+                            sourceId: d,
+                            name: typeof o.name == "string" && o.name.trim() ? o.name.trim() : `组 ${a + 1}`,
+                            position: Ba(c, new A(0,0,0)),
+                            rotation: Ba(l, new A(0,0,0)),
+                            scale: Ba(h, new A(1,1,1))
+                        })
+                    }
+                    );
+                    let r = [];
+                    if (t.forEach( (o, a) => {
+                        if (!o || typeof o != "object" || !wi[o.geometryType])
+                            return;
+                        let c = wi[o.geometryType]
+                          , l = o.position || o.pos
+                          , h = o.rotation || o.rot
+                          , d = o.scale || o.scl;
+                        r.push({
+                            geometryType: o.geometryType,
+                            geometryParams: Array.isArray(o.geometryParams) && o.geometryParams.length ? [...o.geometryParams] : [...c.params],
+                            color: typeof o.color == "string" ? o.color : "#3498db",
+                            name: typeof o.name == "string" && o.name.trim() ? o.name.trim() : null,
+                            position: Ba(l, new A(0,0,0)),
+                            rotation: Ba(h, new A(0,0,0)),
+                            scale: Ba(d, new A(1,1,1)),
+                            groupId: o.groupId != null ? o.groupId : null,
+                            bevel: Math.max(0, Number(o.bevel) || 0),
+                            capType: o.capType === "round" ? "round" : "flat",
+                            sourceIndex: a
                         })
                     }
                     ),
-                    !e.length)
-                        throw new Error("\u6587\u4EF6\u4E2D\u6CA1\u6709\u53EF\u8BC6\u522B\u7684\u6A21\u578B");
-                    return e
+                    !r.length)
+                        throw new Error("文件中没有可识别的模型");
+                    return {
+                        models: r,
+                        groups: s
+                    }
+                }
+                function O0(i) {
+                    return normalizeExportedPackage(i)
+                }
+                function createSceneFromPackage(i, e=!1) {
+                    let t = i && Array.isArray(i.models) ? i.models : Array.isArray(i) ? i : []
+                      , n = i && Array.isArray(i.groups) ? i.groups : []
+                      , s = new Map
+                      , r = [];
+                    n.forEach(o => {
+                        let a = new Gt;
+                        a.name = o.name,
+                        a.position.copy(o.position),
+                        a.rotation.set(o.rotation.x, o.rotation.y, o.rotation.z),
+                        a.scale.copy(o.scale),
+                        Dt.add(a);
+                        let c = ++vn;
+                        Ke.push({
+                            id: c,
+                            name: a.name,
+                            object: a
+                        }),
+                        s.set(String(o.sourceId), c),
+                        r.push(c)
+                    }
+                    );
+                    let o = null;
+                    e && !n.length && t.length && (o = new Gt,
+                    o.name = `导入组 ${++vn}`,
+                    Dt.add(o),
+                    Ke.push({
+                        id: vn,
+                        name: o.name,
+                        object: o
+                    }),
+                    r.push(vn));
+                    let a = [];
+                    return t.forEach(c => {
+                        let l = null;
+                        c.groupId != null && s.has(String(c.groupId)) ? l = s.get(String(c.groupId)) : o && (l = vn);
+                        let h = Gs(c.geometryType, c.color, c.position, c.rotation, c.scale, l, c.bevel, c.capType, c.geometryParams, c.name, !0);
+                        h && a.push(h)
+                    }
+                    ),
+                    {
+                        models: a,
+                        groupIds: r
+                    }
                 }
                 function Oh(i, e) {
                     let t = new FileReader;
-                    t.onerror = () => Hs("\u8BFB\u53D6\u5931\u8D25", "\u65E0\u6CD5\u8BFB\u53D6\u6240\u9009\u6587\u4EF6\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u3002", [{
-                        label: "\u786E\u5B9A",
+                    t.onerror = () => Hs("读取失败", "无法读取所选文件，请重新选择。", [{
+                        label: "确定",
                         value: !0,
                         class: "primary"
                     }]),
@@ -25196,8 +25312,8 @@ void main() {
                         try {
                             e(O0(N0(t.result)))
                         } catch (n) {
-                            Hs("\u5BFC\u5165\u5931\u8D25", n.message, [{
-                                label: "\u786E\u5B9A",
+                            Hs("导入失败", n.message, [{
+                                label: "确定",
                                 value: !0,
                                 class: "primary"
                             }])
@@ -25221,20 +25337,15 @@ void main() {
                         vn = 0,
                         pn = [],
                         sn = -1;
-                        let t = [];
-                        e.forEach(n => {
-                            let s = Gs(n.geometryType, n.color, n.position, n.rotation, n.scale, null, n.bevel, n.capType, n.geometryParams, n.name, !0);
-                            s && t.push(s)
-                        }
-                        ),
+                        let t = createSceneFromPackage(e, !1);
                         Ws(),
                         vt(),
                         Fn(),
                         Xt(),
                         tt(),
                         markProjectSaved(),
-                        Hs("\u52A0\u8F7D\u5B8C\u6210", `\u5DF2\u52A0\u8F7D ${t.length} \u4E2A\u6A21\u578B\u3002`, [{
-                            label: "\u786E\u5B9A",
+                        Hs("加载完成", `已加载 ${t.models.length} 个模型${t.groupIds.length ? `，${t.groupIds.length} 个组` : ""}。`, [{
+                            label: "确定",
                             value: !0,
                             class: "primary"
                         }])
@@ -25242,41 +25353,117 @@ void main() {
                     ))
                 }
                 async function B0() {
-                    Nh(i => Oh(i, e => {
-                        let t = new Gt;
-                        t.name = `\u5BFC\u5165\u7EC4 ${++vn}`,
-                        Dt.add(t);
-                        let n = vn;
-                        Ke.push({
-                            id: n,
-                            name: t.name,
-                            object: t
-                        });
-                        let s = [];
-                        e.forEach(r => {
-                            let o = Gs(r.geometryType, r.color, r.position, r.rotation, r.scale, n, r.bevel, r.capType, r.geometryParams, r.name, !0);
-                            o && s.push(o)
-                        }
-                        ),
+                    Nh(i => importModelFile(i))
+                }
+                function importModelFile(i) {
+                    Oh(i, e => {
+                        let t = createSceneFromPackage(e, !0);
                         vt(),
-                        Mn("group", n),
+                        t.groupIds.length ? Mn("group", t.groupIds[t.groupIds.length - 1]) : t.models.length && Mn("model", t.models[t.models.length - 1].id),
                         tt(),
-                        Hs("\u5BFC\u5165\u5B8C\u6210", `\u5DF2\u5BFC\u5165 ${s.length} \u4E2A\u6A21\u578B\u3002`, [{
-                            label: "\u786E\u5B9A",
+                        Hs("导入完成", `已导入 ${t.models.length} 个模型${t.groupIds.length ? `，${t.groupIds.length} 个组` : ""}。`, [{
+                            label: "确定",
                             value: !0,
                             class: "primary"
                         }])
                     }
-                    ))
+                    )
                 }
+                function isJsonImportFile(i) {
+                    if (!i)
+                        return !1;
+                    let e = (i.name || "").toLowerCase(), t = (i.type || "").toLowerCase();
+                    return e.endsWith(".json") || t === "application/json" || t === "text/json"
+                }
+                function getJsonImportFile(i) {
+                    let e = i?.dataTransfer?.files;
+                    if (!e || !e.length)
+                        return null;
+                    return [...e].find(isJsonImportFile) || null
+                }
+                function hasPotentialJsonImportFile(i) {
+                    let e = i?.dataTransfer;
+                    if (!e)
+                        return !1;
+                    if (getJsonImportFile(i))
+                        return !0;
+                    let t = e.items ? [...e.items] : [];
+                    if (!t.length)
+                        return !1;
+                    return t.some(n => n.kind === "file" && (!n.type || n.type === "application/json" || n.type === "text/json"))
+                }
+                let dragImportDepth = 0;
+                function setDragJsonImportActive(i) {
+                    Un && Un.classList.toggle("drag-json-import-active", !!i)
+                }
+                ["dragenter", "dragover", "dragleave", "drop"].forEach(i => {
+                    window.addEventListener(i, e => {
+                        e.preventDefault(),
+                        e.stopPropagation()
+                    }
+                    , !1)
+                }
+                );
+                window.addEventListener("dragenter", i => {
+                    dragImportDepth++,
+                    hasPotentialJsonImportFile(i) && setDragJsonImportActive(!0)
+                }
+                );
+                window.addEventListener("dragover", i => {
+                    let e = hasPotentialJsonImportFile(i);
+                    i.dataTransfer && (i.dataTransfer.dropEffect = e ? "copy" : "none"),
+                    setDragJsonImportActive(!!e)
+                }
+                );
+                window.addEventListener("dragleave", () => {
+                    dragImportDepth = Math.max(0, dragImportDepth - 1),
+                    dragImportDepth === 0 && setDragJsonImportActive(!1)
+                }
+                );
+                window.addEventListener("drop", i => {
+                    dragImportDepth = 0,
+                    setDragJsonImportActive(!1);
+                    let e = getJsonImportFile(i);
+                    if (e) {
+                        importModelFile(e);
+                        return
+                    }
+                    let t = i?.dataTransfer?.files?.length ? "请拖入 .json 模型文件。" : "未检测到可导入的 JSON 文件。";
+                    Hs("无法导入", t, [{
+                        label: "确定",
+                        value: !0,
+                        class: "primary"
+                    }])
+                }
+                );
                 function Ja() {
-                    let i = Re.map(c => ({
+                    let i = Ke.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        position: {
+                            x: c.object.position.x,
+                            y: c.object.position.y,
+                            z: c.object.position.z
+                        },
+                        rotation: {
+                            x: c.object.rotation.x,
+                            y: c.object.rotation.y,
+                            z: c.object.rotation.z
+                        },
+                        scale: {
+                            x: c.object.scale.x,
+                            y: c.object.scale.y,
+                            z: c.object.scale.z
+                        }
+                    }))
+                      , e = Re.map(c => ({
                         geometryType: c.geometryType,
                         geometryParams: [...c.geometryParams],
                         bevel: c.bevel || 0,
                         capType: c.capType || "flat",
                         color: c.color,
                         name: c.name,
+                        groupId: c.groupId || null,
                         position: {
                             x: c.mesh.position.x,
                             y: c.mesh.position.y,
@@ -25293,21 +25480,24 @@ void main() {
                             z: c.mesh.scale.z
                         }
                     }))
-                      , e = JSON.stringify({
-                        modelsData: i
+                      , t = JSON.stringify({
+                        format: "3d-model-studio",
+                        version: 2,
+                        groupsData: i,
+                        modelsData: e
                     }, null, 2)
-                      , t = new Blob([e],{
+                      , n = new Blob([t],{
                         type: "application/json;charset=utf-8"
                     })
-                      , n = URL.createObjectURL(t)
-                      , s = document.createElement("a");
-                    s.href = n,
-                    s.download = "model.json",
-                    document.body.appendChild(s),
-                    s.click(),
-                    s.remove(),
+                      , s = URL.createObjectURL(n)
+                      , r = document.createElement("a");
+                    r.href = s,
+                    r.download = "model.json",
+                    document.body.appendChild(r),
+                    r.click(),
+                    r.remove(),
                     markProjectSaved(),
-                    setTimeout( () => URL.revokeObjectURL(n), 1e3)
+                    setTimeout( () => URL.revokeObjectURL(s), 1e3)
                 }
                 function Fh() {
                     requestAnimationFrame(Fh),
@@ -25339,5 +25529,5 @@ void main() {
         <script src="/Static/js/Global.js"></script>
         <script src="/Web/js/Global.js"></script>
         <script src="/Web/js/SoruxGPT.js"></script>
-    <script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script><script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script><script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script></body>
+    <script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script><script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script><script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script><script src="/Static/js/jquery.js"></script><script src="/Static/js/Global.js"></script><script src="/Web/js/Global.js"></script><script src="/Web/js/SoruxGPT.js"></script></body>
 </html>
