@@ -21998,7 +21998,7 @@ void main() {
                             return C !== null ? 2 * Math.PI / 60 * n.autoRotateSpeed * C : 2 * Math.PI / 60 / 60 * n.autoRotateSpeed
                         }
                         function E(C) {
-                            let $ = Math.abs(C) / (100 * (window.devicePixelRatio | 0));
+                            let $ = Math.abs(C) / (100 * Math.max(1, window.devicePixelRatio | 0));
                             return Math.pow(.95, n.zoomSpeed * $)
                         }
                         function O(C) {
@@ -23592,6 +23592,8 @@ void main() {
                 var On = new qr(Nn,Ut.domElement);
                 On.enableDamping = !0;
                 On.target.set(0, .3, 0);
+                On.minDistance = .5;
+                On.maxDistance = 50;
                 On.update();
                 var ht = new Kr(Nn,Ut.domElement);
                 ht.setMode("translate");
@@ -25500,9 +25502,13 @@ void main() {
                     setTimeout( () => URL.revokeObjectURL(s), 1e3)
                 }
                 function Fh() {
-                    requestAnimationFrame(Fh),
-                    On.update(),
-                    Ut.render(Dt, Nn)
+                    requestAnimationFrame(Fh);
+                    try {
+                        On.update(),
+                        Ut.render(Dt, Nn)
+                    } catch (e) {
+                        console.warn("Render loop error:", e)
+                    }
                 }
                 window.addEventListener("resize", () => {
                     Nn.aspect = Un.clientWidth / Un.clientHeight,
